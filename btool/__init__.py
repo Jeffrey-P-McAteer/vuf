@@ -35,7 +35,7 @@ class Target(enum.Enum):
   # at no point do we want to be reliant on some "default" configuration to build the SW
   LINUX_x64 = 'x86_64-unknown-linux-gnu', 'linux-x64', 'vuf-gui', 'libvuf.so',
   WINDOWS_x64 = 'x86_64-pc-windows-gnu', 'win-x64', 'vuf-gui.exe', 'vuf.dll',
-  OSX_x64 = 'x86_64-apple-darwin', 'osx-x64', 'vuf-gui', 'vuf.dylib'
+  OSX_x64 = 'x86_64-apple-darwin', 'osx-x64', 'vuf-gui', 'libvuf.dylib'
 
 def in_dir(directory, *cmds):
   cwd = os.path.abspath( os.getcwd() )
