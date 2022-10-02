@@ -8,7 +8,9 @@
 
 # Running
 
- - `dotnet run`
+ - `dotnet run --configuration Release --runtime win-x64`
+ - `dotnet run --configuration Release --runtime linux-x64`
+ - `dotnet run --configuration Release --runtime osx-x64`
 
 # Cross-compiling
 
