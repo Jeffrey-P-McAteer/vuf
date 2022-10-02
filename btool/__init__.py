@@ -85,6 +85,9 @@ def write_cargo_config():
   if not os.path.exists(os.path.dirname(config_f)):
     os.makedirs(os.path.dirname(config_f), exists_ok=True)
 
+  if os.path.exists(config_f):
+    return # Avoid re-work, assume existence means everything's fine.
+
   apple_linker = 'x86_64-apple-darwin20.4-clang'
   apple_ar = 'x86_64-apple-darwin20.4-ar'
   windows_linker = 'x86_64-w64-mingw32-gcc'
@@ -101,6 +104,9 @@ def write_cargo_config():
       elif 'x86_64' in file_name and 'w64' in file_name and 'mingw32' in file_name and file_name.endswith('ar'):
         windows_ar = file_name
 
+  for tool in [apple_linker, apple_ar, windows_linker, windows_ar]:
+    if shutil.which(tool) is None:
+      raise Exception('Cannot find a tool we expected to have for cross-compilation: {}'.format(tool))
 
   with open(config_f, 'w') as fd:
     fd.write('''
