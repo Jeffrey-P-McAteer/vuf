@@ -25,21 +25,17 @@ class Target(enum.Enum):
     obj = object.__new__(cls)
     obj._value_ = value
     return obj
-  def __init__(self, cargo_target_triple, dotnet_runtime_target, exe_extension, ):
+  def __init__(self, cargo_target_triple, dotnet_runtime_target, exe_file_name, shared_lib_file_name):
     self.cargo_target_triple = cargo_target_triple
     self.dotnet_runtime_target = dotnet_runtime_target
-    self.exe_extension = exe_extension
+    self.exe_file_name = exe_file_name
+    self.shared_lib_file_name = shared_lib_file_name
 
   # For each build tool we define constants for cross-compilation;
   # at no point do we want to be reliant on some "default" configuration to build the SW
-  LINUX_x64 = 'x86_64-unknown-linux-gnu', 'linux-x64', '',
-  WINDOWS_x64 = 'x86_64-pc-windows-gnu', 'win-x64', '.exe',
-  OSX_x64 = 'x86_64-apple-darwin', 'osx-x64', '',
-
-def get_ui_exe(target: Target):
-  return os.path.abspath(os.path.join(
-    'vuf-gui', 'bin', 'Release', 'net6.0', target.dotnet_runtime_target, 'publish', 'vuf-gui'+target.exe_extension
-  ))
+  LINUX_x64 = 'x86_64-unknown-linux-gnu', 'linux-x64', 'vuf-gui', 'libvuf.so',
+  WINDOWS_x64 = 'x86_64-pc-windows-gnu', 'win-x64', 'vuf-gui.exe', 'vuf.dll',
+  OSX_x64 = 'x86_64-apple-darwin', 'osx-x64', 'vuf-gui', 'vuf.dylib'
 
 def in_dir(directory, *cmds):
   cwd = os.path.abspath( os.getcwd() )
@@ -62,11 +58,66 @@ def cmd(*pieces):
 def cmd_l(*pieces):
   return lambda: cmd(*pieces)
 
+def get_ui_exe(target: Target):
+  return os.path.abspath(os.path.join(
+    'vuf-gui', 'bin', 'Release', 'net6.0', target.dotnet_runtime_target, 'publish', target.exe_file_name
+  ))
 
 def build_vuf_gui(target: Target):
   in_dir('vuf-gui',
     cmd_l('dotnet', 'publish', '--self-contained', '--configuration', 'Release', '--runtime', target.dotnet_runtime_target ),
   )
+
+
+def get_shared_lib(target: Target):
+  return os.path.abspath(os.path.join(
+    'vuf-lib', 'target', target.cargo_target_triple, 'release', target.shared_lib_file_name
+  ))
+
+def build_vuf_lib(target: Target):
+  in_dir('vuf-lib',
+    cmd_l('cargo', 'build', '--release', '--target', target.cargo_target_triple ),
+  )
+
+
+def write_cargo_config():
+  config_f = os.path.join('.cargo', 'config')
+  if not os.path.exists(os.path.dirname(config_f)):
+    os.makedirs(os.path.dirname(config_f), exists_ok=True)
+
+  apple_linker = 'x86_64-apple-darwin20.4-clang'
+  apple_ar = 'x86_64-apple-darwin20.4-ar'
+  windows_linker = 'x86_64-w64-mingw32-gcc'
+  windows_ar = 'x86_64-w64-mingw32-ar'
+  
+  for d in os.environ.get('PATH', '').split(os.pathsep):
+    for file_name in os.listdir():
+      if 'x86_64' in file_name and 'apple' in file_name and 'darwin' in file_name and ( file_name.endswith('gcc') or file_name.endswith('clang') ):
+        apple_linker = file_name
+      elif 'x86_64' in file_name and 'apple' in file_name and 'darwin' in file_name and file_name.endswith('ar'):
+        apple_ar = file_name
+      elif 'x86_64' in file_name and 'w64' in file_name and 'mingw32' in file_name and ( file_name.endswith('gcc') or file_name.endswith('clang') ):
+        windows_linker = file_name
+      elif 'x86_64' in file_name and 'w64' in file_name and 'mingw32' in file_name and file_name.endswith('ar'):
+        windows_ar = file_name
+
+
+  with open(config_f, 'w') as fd:
+    fd.write('''
+[target.x86_64-apple-darwin]
+linker = "{apple_linker}"
+ar = "{apple_ar}"
+
+[target.x86_64-pc-windows-gnu]
+linker = "{windows_linker}"
+ar = "{windows_ar}"
+
+'''.format(
+  apple_linker=apple_linker,
+  apple_ar=apple_ar,
+  windows_linker=windows_linker,
+  windows_ar=windows_ar,
+))
 
 def select_only_one_target(args, targets):
   one_target = None
@@ -92,9 +143,18 @@ def main(args=sys.argv):
   if not one_target is None:
     targets_to_build = [ one_target ]
   
+  print('')
   print('Building VUF for targets={}'.format(targets_to_build))
+  print('')
+
+  write_cargo_config()
 
   for target in targets_to_build:
+    print('')
+    print('Building VUF for target={}'.format(target))
+    print('')
+
+    build_vuf_lib(target)
     build_vuf_gui(target)
 
 
